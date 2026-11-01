@@ -495,35 +495,109 @@ m.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{const k=b.dataset.k,s=S
 function phApply(){$('ph').classList.toggle('lt',!!S.ph.lt);$('ph').style.setProperty('--fs',[11,12.5,14][S.ph.fs]+'px')}
 function phoneToggle(v){if(mode!='play'||!G)return;PH.open=v===undefined?!PH.open:!!v;PH.app='home';$('ph').style.display=PH.open?'flex':'none';const U=ch&&ch.userData;if(U)U.phone=PH.open&&!driving;beep(PH.open?560:380,.07);if(PH.open){phApply();phRender()}}
 $('bPh').onclick=()=>phoneToggle();$('phh').onclick=()=>{if(PH.app!='home'){PH.app='home';phRender()}else phoneToggle(false)};
-// ===== MULTIPLAYER (Supabase Realtime) =====
-const SBU="https://ugbfozlndfvsgexaiqzl.supabase.co",SBK="sb_publishable_TYhi-X-Sa0zr4S7OlILE4w_E_11MnLy";
-let MP={sb:null,ch:null,id:"",g:null,pl:new Map()};
+// ===== MULTIPLAYER v2 (Supabase Realtime: Broadcast + Presence, tanpa tabel DB) =====
+const SBU="https://ugbfozlndfvsgexaiqzl.supabase.co",SBK="sb_publishable_TYhi-X-Sa0zr4S7OlILE4w_E_11MnLy";// publishable key (aman di client). hanya key publishable yang boleh ada di client.
+const MPMAX=8,MPSTALE=10000;
+let MP={sb:null,ch:null,id:"",g:null,pl:new Map(),room:"",host:false,last:null,lastT:0,out:[],log:{},un:{},seen:new Set(),rl:{},sendT:0,n:0};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const cl=(n,a,b)=>Number.isFinite(n)?Math.max(a,Math.min(b,n)):0;
+const nm=s=>String(s==null?"":s).replace(/[\u0000-\u001f<>]/g,"").trim().slice(0,14)||"Pemain";
+const cm=s=>String(s==null?"":s).replace(/[\u0000-\u001f]/g,"").trim().slice(0,200);
+const mpPh=()=>{if(PH.open)phRender()};
+const okI=it=>Array.isArray(it)&&it.length<=60&&it.every(s=>s==null||(Array.isArray(s)&&typeof s[0]=="string"&&ITEMS[s[0]]&&Number.isFinite(s[1])));
+const WXT=["clear","rain","sand"],dbits=()=>doors.map(x=>x.open?1:0).join("");
+function mpBase(){MP.N0=crates.length;MP.init={};crates.forEach((c,i)=>MP.init["c"+i]=JSON.stringify(c.items));MP.ws={};mpWScan(true)}
+function mpWScan(adopt){const ws=MP.ws,d={},cs=[],dr=[];
+crates.forEach((c,i)=>{if(i>=MP.N0&&!c.uid){c.uid=MP.id+"-"+(MP.dn=(MP.dn||0)+1);ws[c.uid]=JSON.stringify(c.items);dr.push([c.uid,c.x,c.z,c.items]);return}
+const k=c.uid||"c"+i,j=JSON.stringify(c.items);if(ws[k]!==j){ws[k]=j;cs.push([k,c.items])}});
+const db=dbits(),f=Math.round(G.veh.fuel),vs=JSON.stringify([G.veh.parts,f]),l=lampOn?1:0;
+if(ws.do!==db){ws.do=db;d.do=db}if(ws.v!==vs){ws.v=vs;d.v={p:G.veh.parts,f}}if(ws.l!==l){ws.l=l;d.l=l}
+if(cs.length)d.c=cs;if(dr.length)d.dr=dr;return adopt?null:(Object.keys(d).length?d:null)}
+function mpWFull(){const cs=[],dr=[];crates.forEach((c,i)=>{if(c.uid)dr.push([c.uid,c.x,c.z,c.items]);else if(i<MP.N0&&JSON.stringify(c.items)!==MP.init["c"+i])cs.push(["c"+i,c.items])});
+return{c:cs,dr,do:dbits(),v:{p:G.veh.parts,f:Math.round(G.veh.fuel)},vp:[veh.position.x,veh.position.z,veh.rotation.y],l:lampOn?1:0,t:G.time,wx:wx.type}}
+function mpWApply(p){if(!p||typeof p!="object"||!G||!G.mp||!MP.ws)return;const ws=MP.ws;
+(Array.isArray(p.dr)?p.dr:[]).slice(0,100).forEach(a=>{if(!Array.isArray(a)||typeof a[0]!="string"||a[0].length>40||!okI(a[3])||crates.some(c=>c.uid==a[0]))return;const c=mkDrop({x:cl(+a[1],-5e3,5e3),z:cl(+a[2],-5e3,5e3),items:a[3]});c.uid=a[0];ws[a[0]]=JSON.stringify(c.items)});
+(Array.isArray(p.c)?p.c:[]).slice(0,400).forEach(a=>{if(!Array.isArray(a)||typeof a[0]!="string"||!okI(a[1]))return;const k=a[0],st=/^c\d+$/.test(k),c=st?(+k.slice(1)<MP.N0?crates[+k.slice(1)]:null):crates.find(q=>q.uid==k);if(!c)return;c.items=a[1];ws[k]=JSON.stringify(c.items);refC(c)});
+if(typeof p.do=="string"&&p.do.length==doors.length){doors.forEach((d,i)=>{if((p.do[i]=="1")!=!!d.open)togDoor(d,true)});ws.do=dbits()}
+if(p.v&&p.v.p&&typeof p.v.p=="object"){const np={};for(const k in NEED)np[k]=cl(+p.v.p[k]||0,0,NEED[k]);G.veh.parts=np;G.veh.fuel=cl(+p.v.f,0,40);syncVeh();ws.v=JSON.stringify([np,Math.round(G.veh.fuel)])}
+if(p.l!=null){lampOn=!!p.l;ws.l=p.l?1:0}
+if(Array.isArray(p.vp)&&!driving){veh.position.set(cl(+p.vp[0],-5e3,5e3),0,cl(+p.vp[1],-5e3,5e3));veh.position.y=H(veh.position.x,veh.position.z);veh.rotation.y=cl(+p.vp[2],-50,50)}
+if(typeof p.t=="number"&&p.t>=0&&p.t<1)G.time=p.t;if(WXT.includes(p.wx)&&p.wx!=wx.type){wx.type=p.wx;wx.t=60}}
 function mpTag(n){const c=document.createElement("canvas");c.width=256;c.height=64;const x=c.getContext("2d");x.font="bold 30px sans-serif";x.textAlign="center";x.fillStyle="#0009";x.fillRect(0,8,256,48);x.fillStyle="#fff";x.fillText(n,128,44);const s=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),depthTest:false,transparent:true}));s.scale.set(2,.5,1);s.position.y=2.3;s.renderOrder=9;return s}
-function mpAdd(p){if(MP.pl.has(p.id)||!MP.g)return;const m=makeChar(p.acc||{});m.add(mpTag(String(p.name||"Pemain").slice(0,14)));const v=new T.Group();v.add(box(3.4,1,5.2,/^#[0-9a-f]{3,6}$/i.test(p.av)?p.av:"#e0902f",0,.7,0));v.visible=false;m.visible=false;MP.g.add(m,v);MP.pl.set(p.id,{m,v,s:null,i:0})}
-function mpDel(id){const o=MP.pl.get(id);if(!o)return;MP.g.remove(o.m,o.v);MP.pl.delete(id)}
-function mpLeave(){if(MP.sb&&MP.ch){try{MP.sb.removeChannel(MP.ch)}catch(e){}}MP.ch=null;if(MP.g)sc.remove(MP.g);MP.g=null;MP.pl.clear()}
+function mpFree(o){o.traverse(x=>{if(x.geometry)x.geometry.dispose();const ms=x.material?[].concat(x.material):[];ms.forEach(q=>{if(q.map)q.map.dispose();q.dispose()})})}
+function mpAdd(p){if(MP.pl.has(p.id)||!MP.g||MP.pl.size>=MPMAX-1)return;let m;try{m=makeChar(p.acc&&typeof p.acc=="object"?p.acc:{})}catch(e){m=makeChar({})}
+const n=nm(p.name);m.add(mpTag(n));const v=new T.Group();v.add(box(3.4,1,5.2,/^#[0-9a-f]{3,6}$/i.test(p.av)?p.av:"#e0902f",0,.7,0));v.visible=false;m.visible=false;MP.g.add(m,v);MP.pl.set(p.id,{m,v,s:null,i:0,seen:0,name:n})}
+function mpDel(id){const o=MP.pl.get(id);if(!o)return;MP.g.remove(o.m,o.v);mpFree(o.m);mpFree(o.v);MP.pl.delete(id)}
+function mpLeave(){const rc=MP.ch;MP.ch=null;if(MP.sb&&rc){try{MP.sb.removeChannel(rc)}catch(e){}}
+MP.pl.forEach((o,id)=>mpDel(id));if(MP.g)sc.remove(MP.g);MP.g=null;MP.pl.clear();MP.out=[];MP.log={};MP.un={};MP.seen.clear();MP.last=null;MP.host=false;MP.ws=null;MP.gotF=0;NET.state="sp";PH.peer=null}
+function mpRx(d){const o=d&&typeof d.id=="string"&&MP.pl.get(d.id);if(!o||!d.s||typeof d.s!="object")return;const s=d.s;
+o.s={x:cl(s.x,-5e3,5e3),y:cl(s.y,-200,500),z:cl(s.z,-5e3,5e3),r:cl(s.r,-50,50),d:s.d?1:0,vx:cl(s.vx,-5e3,5e3),vz:cl(s.vz,-5e3,5e3),vr:cl(s.vr,-50,50)};o.seen=performance.now()}
+function mpPush(th,e){const a=MP.log[th]=MP.log[th]||[];a.push(e);if(a.length>50)a.shift();return e}
+function mpCRx(d){if(!d||typeof d.i!="string"||typeof d.x!="string"||typeof d.f!="string"||d.f==MP.id)return;if(d.to!="*"&&d.to!=MP.id)return;
+if(MP.seen.has(d.i))return;MP.seen.add(d.i);if(MP.seen.size>200)MP.seen.delete(MP.seen.values().next().value);
+const now=Date.now();if(now-(MP.rl[d.f]||0)<300)return;MP.rl[d.f]=now;
+const th=d.to=="*"?"*":d.f,txt=cm(d.x);if(!txt)return;const o=MP.pl.get(d.f),who=o?o.name:nm(d.n);mpPush(th,{me:0,n:who,x:txt,st:""});
+const see=PH.open&&((th=="*"&&PH.app=="grp")||(th!="*"&&PH.app=="msg"&&PH.peer==th));
+if(!see){MP.un[th]=(MP.un[th]||0)+1;if(S.ph.tst)toast("💬 "+who+": "+txt.slice(0,40));if(S.ph.snd)beep(760,.08)}mpPh()}
+function mpFlush(){const rc=MP.ch;if(!rc||rc.state!="joined"||SG.l=="r"||!MP.out.length)return;
+MP.out.splice(0,3).forEach(e=>{if(e.p){rc.send({type:"broadcast",event:"c",payload:e.p});e.st="✓";e.p=null}});mpPh()}
+function mpSend(th,t){t=cm(t);if(!t||!MP.ch||!th)return;if(th!="*"&&!MP.pl.has(th))return toast("Kontak sudah keluar");
+const now=Date.now();if(now-MP.sendT<700)return toast("Terlalu cepat");MP.sendT=now;
+const e=mpPush(th,{me:1,n:"",x:t,st:"…"});e.p={i:Math.random().toString(36).slice(2,10)+now.toString(36),f:MP.id,n:nm(P.name),to:th,x:t};
+if(MP.out.length<30)MP.out.push(e);else{e.st="✗";e.p=null}mpFlush();mpPh()}
 function mpJoin(room){mpLeave();if(!window.supabase)return toast("Library Supabase gagal dimuat, cek internet");
-MP.sb=MP.sb||supabase.createClient(SBU,SBK);MP.id=Math.random().toString(36).slice(2,10);MP.g=new T.Group();sc.add(MP.g);
+MP.sb=MP.sb||supabase.createClient(SBU,SBK,{realtime:{params:{eventsPerSecond:20}}});MP.id=Math.random().toString(36).slice(2,10);MP.room=room;MP.g=new T.Group();sc.add(MP.g);
 let h=2166136261;for(const c of room)h=Math.imul(h^c.charCodeAt(0),16777619);const seed=(h>>>0)%1e9;
-const ch=MP.sb.channel("ds-"+room,{config:{broadcast:{self:false},presence:{key:MP.id}}});MP.ch=ch;let started=false;
-ch.on("broadcast",{event:"s"},m=>{const d=m.payload,o=d&&MP.pl.get(d.id);if(o)o.s=d.s})
-.on("presence",{event:"join"},e=>{if(e.key==MP.id)return;e.newPresences.forEach(p=>{mpAdd({id:e.key,name:p.name,av:p.av,acc:p.acc});toast((p.name||"Pemain")+" bergabung")})})
-.on("presence",{event:"leave"},e=>{if(MP.pl.has(e.key)){mpDel(e.key);toast("Pemain keluar")}})
-.subscribe(async st=>{if(st=="SUBSCRIBED"){if(!started){started=true;newGame(1);G.seed=seed;G.mp=1;closeM();show("");startGame();toast("Room "+room)}await ch.track({name:P.name,av:P.avatar,acc:P.acc})}else if(st=="CHANNEL_ERROR"||st=="TIMED_OUT")toast("Gagal konek ke Supabase")})}
-// kirim posisi 8x/detik
-setInterval(()=>{if(!MP.ch||MP.ch.state!="joined"||mode!="play"||!G||!G.mp||!veh)return;const r=n=>Math.round(n*100)/100;MP.ch.send({type:"broadcast",event:"s",payload:{id:MP.id,s:{x:r(pp.x),y:r(pp.y),z:r(pp.z),r:r(ch.rotation.y),d:driving?1:0,vx:r(veh.position.x),vz:r(veh.position.z),vr:r(veh.rotation.y)}}})},125);
-// tampilkan pemain lain (interpolasi halus)
+const rc=MP.sb.channel("ds-"+room,{config:{broadcast:{self:false},presence:{key:MP.id}}});MP.ch=rc;let started=false;MP.t0=Date.now();
+rc.on("broadcast",{event:"s"},m=>{if(MP.ch===rc)mpRx(m.payload)})
+.on("broadcast",{event:"c"},m=>{if(MP.ch===rc)mpCRx(m.payload)})
+.on("broadcast",{event:"w"},m=>{if(MP.ch!==rc||MP.host||!G||!G.mp)return;const t=m.payload&&m.payload.t;if(typeof t!="number"||!(t>=0&&t<1))return;const d=((t-G.time+1.5)%1)-.5;if(Math.abs(d)>.004)G.time=(G.time+d+1)%1;if(WXT.includes(m.payload.wx)&&m.payload.wx!=wx.type){wx.type=m.payload.wx;wx.t=60}})
+.on("broadcast",{event:"d"},m=>{if(MP.ch===rc)mpWApply(m.payload)})
+.on("broadcast",{event:"q"},m=>{const p=m.payload;if(MP.ch===rc&&MP.host&&MP.ws&&p&&typeof p.id=="string")rc.send({type:"broadcast",event:"f",payload:{to:p.id,s:mpWFull()}})})
+.on("broadcast",{event:"f"},m=>{const p=m.payload;if(MP.ch===rc&&MP.ws&&p&&p.to==MP.id&&p.s&&!MP.gotF){MP.gotF=1;mpWApply(p.s)}})
+.on("presence",{event:"join"},e=>{if(MP.ch!==rc||e.key==MP.id)return;e.newPresences.forEach(p=>{if(!MP.pl.has(e.key)){mpAdd({id:e.key,name:p.name,av:p.av,acc:p.acc});if(MP.pl.has(e.key))toast(nm(p.name)+" bergabung")}});MP.lastT=0;mpPh()})
+.on("presence",{event:"leave"},e=>{if(MP.ch!==rc)return;if(MP.pl.has(e.key)){toast(MP.pl.get(e.key).name+" keluar");mpDel(e.key);mpPh()}})
+.on("presence",{event:"sync"},()=>{if(MP.ch!==rc)return;const st=rc.presenceState();let b=null;for(const k in st){const t=+((st[k][0]||{}).t)||0;if(!b||t<b.t||(t==b.t&&k<b.k))b={k,t}}MP.host=!!b&&b.k==MP.id;mpPh()})
+.subscribe(async st=>{if(MP.ch!==rc)return;
+if(st=="SUBSCRIBED"){if(!started){started=true;newGame(1);G.seed=seed;G.mp=1;closeM();show("");startGame();mpBase();toast("Room "+room)}else toast("Tersambung kembali");
+NET.state="on";MP.lastT=0;await rc.track({name:nm(P.name),av:P.avatar,acc:P.acc,t:MP.t0});MP.gotF=0;MP.qn=0;rc.send({type:"broadcast",event:"q",payload:{id:MP.id}});mpFlush();mpPh()}
+else if(st=="CHANNEL_ERROR"||st=="TIMED_OUT"||st=="CLOSED"){NET.state="off";toast(started?"Koneksi terputus, menyambung ulang...":"Gagal konek ke Supabase");mpPh()}})}
+// satu-satunya interval multiplayer: posisi hanya dikirim bila bergerak (8x/dtk), diam = 1x/dtk, tab tersembunyi = berhenti
+setInterval(()=>{const rc=MP.ch;if(!rc||rc.state!="joined"||mode!="play"||!G||!G.mp||!veh||document.hidden)return;MP.n++;
+const now=performance.now(),r=n=>Math.round(n*100)/100,s={x:r(pp.x),y:r(pp.y),z:r(pp.z),r:r(ch.rotation.y),d:driving?1:0,vx:r(veh.position.x),vz:r(veh.position.z),vr:r(veh.rotation.y)},L=MP.last;
+const mv=!L||Math.hypot(s.x-L.x,s.z-L.z)>.03||Math.abs(s.y-L.y)>.03||Math.abs(s.r-L.r)>.02||s.d!=L.d||(s.d&&(Math.hypot(s.vx-L.vx,s.vz-L.vz)>.03||Math.abs(s.vr-L.vr)>.02));
+if(mv||now-MP.lastT>1000){MP.last=s;MP.lastT=now;rc.send({type:"broadcast",event:"s",payload:{id:MP.id,s}})}
+if(MP.n%8==0)mpFlush();if(MP.host&&MP.n%40==0)rc.send({type:"broadcast",event:"w",payload:{t:G.time,wx:wx.type}});
+if(MP.ws){if(MP.n%4==0){const d=mpWScan();if(d)rc.send({type:"broadcast",event:"d",payload:d})}
+if(!MP.gotF&&!MP.host&&MP.pl.size&&MP.n%16==0&&MP.qn++<4)rc.send({type:"broadcast",event:"q",payload:{id:MP.id}})}},125);
+addEventListener("offline",()=>{if(MP.ch){NET.state="off";mpPh()}});addEventListener("online",()=>{if(MP.ch&&MP.ch.state=="joined"){NET.state="on";mpPh()}});
+// tampilkan pemain lain (interpolasi)
 let mpT=0;(function mpLoop(now){requestAnimationFrame(mpLoop);const dt=Math.min(.1,(now-mpT)/1000||0);mpT=now;
-MP.pl.forEach(o=>{const s=o.s;if(!s)return;const k=o.i?Math.min(1,dt*10):1;o.i=1;const m=o.m,v=o.v;m.visible=!s.d;v.visible=!!s.d;
+MP.pl.forEach(o=>{const s=o.s;if(!s)return;const m=o.m,v=o.v;if(now-o.seen>MPSTALE){m.visible=v.visible=false;o.i=0;return}
+const k=o.i?Math.min(1,dt*10):1;o.i=1;m.visible=!s.d;v.visible=false;
 const mv=Math.hypot(s.x-m.position.x,s.z-m.position.z);
 m.position.x+=(s.x-m.position.x)*k;m.position.y+=(s.y-m.position.y)*k;m.position.z+=(s.z-m.position.z)*k;
 let a=s.r-m.rotation.y;a=Math.atan2(Math.sin(a),Math.cos(a));m.rotation.y+=a*k;
 const U=m.userData;if(U&&U.ar){const w=Math.min(1,mv*20)*Math.sin(now/120)*.7;U.ar[0].rotation.x=w;U.ar[1].rotation.x=-w}
-if(s.d){v.position.x+=(s.vx-v.position.x)*k;v.position.z+=(s.vz-v.position.z)*k;v.position.y=H(v.position.x,v.position.z);let b=s.vr-v.rotation.y;b=Math.atan2(Math.sin(b),Math.cos(b));v.rotation.y+=b*k}})})(0);
+if((s.d||o.wd)&&!driving){const kk=s.d?k:1;veh.position.x+=(s.vx-veh.position.x)*kk;veh.position.z+=(s.vz-veh.position.z)*kk;veh.position.y=H(veh.position.x,veh.position.z);let b=s.vr-veh.rotation.y;b=Math.atan2(Math.sin(b),Math.cos(b));veh.rotation.y+=b*kk}o.wd=s.d})})(0);
+// ===== Phone: Contacts / Messages / Group Chat (broadcast, TIDAK permanen & TIDAK privat secara kriptografis) =====
+{const st=document.createElement("style");st.textContent=".mpl{max-height:150px;overflow:auto;display:flex;flex-direction:column;gap:4px}.mpl div{background:#8883;padding:4px 7px;border-radius:8px;word-break:break-word;max-width:85%}.mpl .me{align-self:flex-end;background:#3b82f666}.mpl small{opacity:.6;display:block}.mpi{display:flex;gap:4px;margin-top:6px}.mpi input{flex:1;min-width:0}";document.head.appendChild(st)}
+function mpPhBody(A){const pl=[...MP.pl.entries()],th=A=="grp"?"*":PH.peer;
+if(A=="contacts")return `<div class="phr">${esc(nm(P.name))} (kamu)<b>${MP.host?"Host":""}</b></div>`+pl.map(([id,o])=>`<div class="phr">${esc(o.name)}<button data-c="${esc(id)}">Pesan</button></div>`).join("")+(pl.length?"":`<p class="phe">Menunggu pemain lain di room ${esc(MP.room)}...</p>`);
+if(!th)return pl.length?pl.map(([id,o])=>`<div class="phr">${esc(o.name)}<button data-c="${esc(id)}">Chat${MP.un[id]?" ("+MP.un[id]+")":""}</button></div>`).join(""):`<p class="phe">Belum ada pemain lain di room ini.</p>`;
+const o=MP.pl.get(th),hd=A=="grp"?`<div class="phr">Room ${esc(MP.room)}<b>${pl.length+1} pemain</b></div>`:`<div class="phr">${esc(o?o.name:"(keluar)")}<button data-c="">Daftar</button></div>`;
+return hd+`<div class="mpl" id="mpl">${(MP.log[th]||[]).map(e=>`<div class="${e.me?"me":""}">${e.me?"":"<small>"+esc(e.n)+"</small>"}${esc(e.x)}${e.me&&S.ph.rcp?" <small>"+e.st+(e.st=="…"?" tertunda":"")+"</small>":""}</div>`).join("")}</div><div class="mpi"><input id="mpt" maxlength="200" placeholder="Ketik pesan"><button id="mps">Kirim</button></div>`}
+{const _pb=phBody;phBody=function(A){return(MP.ch&&(A=="contacts"||A=="msg"||A=="grp"))?mpPhBody(A):_pb(A)};
+const _pr=phRender;phRender=function(){const a=$("mpt"),v=a?a.value:"",f=a&&document.activeElement==a;if(PH.app!="msg")PH.peer=null;
+if(MP.ch){if(PH.app=="grp")MP.un["*"]=0;else if(PH.app=="msg"&&PH.peer)MP.un[PH.peer]=0}_pr();
+$("phm").querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>{PH.peer=b.dataset.c||null;PH.app="msg";phRender()});
+const t=$("mpt"),s=$("mps"),l=$("mpl");if(l)l.scrollTop=l.scrollHeight;
+if(t){if(f){t.value=v;t.focus()}["keydown","keyup","keypress"].forEach(n=>t.addEventListener(n,e=>e.stopPropagation()));
+const go=()=>{mpSend(PH.app=="grp"?"*":PH.peer,t.value);t.value=""};s.onclick=go;t.addEventListener("keydown",e=>{if(e.key=="Enter")go()})}}}
 // keluar ke lobby = putus koneksi; save dimatikan saat multiplayer
 {const _tl=toLobby;toLobby=function(){mpLeave();return _tl.apply(this,arguments)};const _sg=saveG;saveG=function(){if(G&&G.mp)return;return _sg.apply(this,arguments)}}
-$("bMP").onclick=()=>{modal(`<b>MULTIPLAYER</b><p>Semua pemain dengan kode room yang sama masuk ke gurun yang sama.</p><p><input type="text" id="mpR" maxlength="12" placeholder="Kode room (mis. GURUN1)"></p><div class="row"><button id="mpGo">Gabung / Buat</button><button id="cx">Batal</button></div>`);
-$("cx").onclick=closeM;$("mpGo").onclick=()=>{const r=$("mpR").value.trim().toUpperCase().replace(/[^A-Z0-9]/g,"");if(!r)return toast("Isi kode room (huruf/angka)");mpJoin(r)}};
+$("bMP").onclick=()=>{modal(`<b>MULTIPLAYER</b><p>Semua pemain dengan kode room yang sama masuk ke gurun yang sama (maks ${MPMAX}). Kode room bersifat publik: siapa pun yang tahu kodenya bisa masuk, jadi pakai kode yang sulit ditebak.</p><p><input type="text" id="mpR" maxlength="12" placeholder="Kode room (min. 4 huruf/angka)"></p><div class="row"><button id="mpGo">Gabung / Buat</button><button id="cx">Batal</button></div>`);
+$("cx").onclick=closeM;$("mpGo").onclick=()=>{const r=$("mpR").value.trim().toUpperCase().replace(/[^A-Z0-9]/g,"");if(r.length<4)return toast("Kode room minimal 4 huruf/angka");mpJoin(r)}};
 // boot
 (async()=>{const set=p=>$("lb").style.width=p+"%";let ti=0;$("tip").textContent=TIPS[0];const tt=setInterval(()=>$("tip").textContent=TIPS[++ti%TIPS.length],1800);const t0=Date.now();
 set(15);await new Promise(r=>setTimeout(r,50));set(40);P=await dbp("get","profile");set(70);ch=makeChar(P&&P.acc);sc.add(ch);lobbyG=makeLobby();sc.add(lobbyG);makeSky();set(90);
