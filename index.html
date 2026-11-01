@@ -75,7 +75,7 @@ body.ed #joy,body.ed .cb,body.ed #bAct,body.ed #bUse,body.ed #hot,body.ed #top{o
 <div id="hud"></div><div id="top"><button id="bPh">HP</button><button id="bInv">TAS</button><button id="bPause">||</button></div>
 <div id="ph"><div id="phs"><div id="phb"><span id="phT"></span><span id="phSv"></span><span id="phSg"></span></div><div id="phm"></div><button id="phh" aria-label="Kembali"><i></i></button></div></div><div id="hot"></div><div id="joy"><div id="knob"></div></div>
 <div id="btns"><button class="cb" id="bUse" aria-label="Pakai item" style="display:none"><svg viewBox="0 0 32 32"><circle cx="12" cy="7" r="3" fill="#fff"/><path d="M12 11v9M12 20l-3 8M12 20l4 8M12 13l-4 4 2 3M12 13l6 1 4-5"/><rect x="21" y="3" width="6" height="8" rx="2" fill="#fff" stroke="none"/></svg><span class="lb"></span></button><button class="cb" id="bAct" aria-label="Aksi" style="display:none"><svg viewBox="0 0 32 32"><circle cx="9" cy="7" r="3" fill="#fff"/><path d="M9 11v9M9 20l-3 8M9 20l4 8M9 13l11 3"/><rect x="21" y="14" width="9" height="8" rx="1.5"/></svg><span class="lb"></span></button><div class="row"><button class="cb" id="bCr" aria-label="Jongkok"><svg viewBox="0 0 32 32"><circle cx="11" cy="9" r="3" fill="#fff"/><path d="M11 13l3 8h7v7M11 15l9 3"/><path d="M5 30h22" opacity=".4"/></svg></button><button class="cb" id="bRun" aria-label="Lari"><svg viewBox="0 0 32 32"><circle cx="21" cy="6" r="3" fill="#fff"/><path d="M19 10l-4 9M18 12l6 3 3-4M18 12l-7 1-3 5M15 19l6 4-3 6M15 19l-5 5h-5"/><path d="M3 9h5M1 14h5" opacity=".5"/></svg></button><button class="cb" id="bJmp" aria-label="Lompat"><svg viewBox="0 0 32 32"><circle cx="16" cy="6" r="3" fill="#fff"/><path d="M16 10v9M16 12L9 6M16 12l7-6M16 19l-5 5 3 4M16 19l6 4-3 5"/><path d="M8 30h16" opacity=".4"/></svg></button></div></div>
-<script src="three.min.js"></script><script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="three.min.js"></script><script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
 <script>
 const $=i=>document.getElementById(i),T=THREE;
 const TIPS=["Tidak ada peta. Ingat landmark dan papan petunjuk.","Berlari menguras stamina dan air.","Rakit buggy: cari rangka, mesin, aki, tangki, setir, kursi, suspensi, transmisi, 4 ban, 4 baut.","Jeriken bensin diisi ke buggy saat dekat kendaraan.","Gudang dan garasi sering menyimpan komponen.","Malam hari gelap, jelajahi saat siang. Dekati tiang lampu jalan untuk menyalakannya.","Survivor Phone butuh sinyal. Cari menara radio atau tempat tinggi."];
@@ -495,24 +495,23 @@ m.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{const k=b.dataset.k,s=S
 function phApply(){$('ph').classList.toggle('lt',!!S.ph.lt);$('ph').style.setProperty('--fs',[11,12.5,14][S.ph.fs]+'px')}
 function phoneToggle(v){if(mode!='play'||!G)return;PH.open=v===undefined?!PH.open:!!v;PH.app='home';$('ph').style.display=PH.open?'flex':'none';const U=ch&&ch.userData;if(U)U.phone=PH.open&&!driving;beep(PH.open?560:380,.07);if(PH.open){phApply();phRender()}}
 $('bPh').onclick=()=>phoneToggle();$('phh').onclick=()=>{if(PH.app!='home'){PH.app='home';phRender()}else phoneToggle(false)};
-// ===== MULTIPLAYER (klien) =====
-let MP={ws:null,id:null,g:null,pl:new Map()};
+// ===== MULTIPLAYER (Supabase Realtime) =====
+const SBU="https://ugbfozlndfvsgexaiqzl.supabase.co",SBK="sb_publishable_TYhi-X-Sa0zr4S7OlILE4w_E_11MnLy";
+let MP={sb:null,ch:null,id:"",g:null,pl:new Map()};
 function mpTag(n){const c=document.createElement("canvas");c.width=256;c.height=64;const x=c.getContext("2d");x.font="bold 30px sans-serif";x.textAlign="center";x.fillStyle="#0009";x.fillRect(0,8,256,48);x.fillStyle="#fff";x.fillText(n,128,44);const s=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),depthTest:false,transparent:true}));s.scale.set(2,.5,1);s.position.y=2.3;s.renderOrder=9;return s}
-function mpAdd(p){if(MP.pl.has(p.id)||!MP.g)return;const m=makeChar(p.acc||{});m.add(mpTag(p.name||"Pemain"));const v=new T.Group();v.add(box(3.4,1,5.2,p.av||"#e0902f",0,.7,0));v.visible=false;m.visible=false;MP.g.add(m,v);MP.pl.set(p.id,{m,v,s:null,i:0})}
+function mpAdd(p){if(MP.pl.has(p.id)||!MP.g)return;const m=makeChar(p.acc||{});m.add(mpTag(String(p.name||"Pemain").slice(0,14)));const v=new T.Group();v.add(box(3.4,1,5.2,/^#[0-9a-f]{3,6}$/i.test(p.av)?p.av:"#e0902f",0,.7,0));v.visible=false;m.visible=false;MP.g.add(m,v);MP.pl.set(p.id,{m,v,s:null,i:0})}
 function mpDel(id){const o=MP.pl.get(id);if(!o)return;MP.g.remove(o.m,o.v);MP.pl.delete(id)}
-function mpLeave(){if(MP.ws){MP.ws.onclose=null;try{MP.ws.close()}catch(e){}}MP.ws=null;if(MP.g)sc.remove(MP.g);MP.g=null;MP.pl.clear()}
-function mpJoin(room,srv){mpLeave();const loc=/^(localhost|127\.|192\.168\.)/.test(srv)||(srv==location.host&&location.protocol=="http:");let ws;try{ws=new WebSocket((loc?"ws://":"wss://")+srv)}catch(e){return toast("Alamat server salah")}MP.ws=ws;
-ws.onopen=()=>ws.send(JSON.stringify({t:"j",room,name:P.name,av:P.avatar,acc:P.acc}));
-ws.onerror=()=>toast("Gagal konek ke server");
-ws.onclose=()=>{if(MP.ws===ws&&mode=="play")toast("Koneksi terputus, lanjut main sendiri")};
-ws.onmessage=e=>{let d;try{d=JSON.parse(e.data)}catch(x){return}
-if(d.t=="w"){MP.id=d.id;newGame(d.diff);G.seed=d.seed;G.mp=1;closeM();show("");startGame();MP.g=new T.Group();sc.add(MP.g);d.pl.forEach(mpAdd);toast("Room "+d.room+" - "+(d.pl.length+1)+" pemain")}
-else if(d.t=="+"){mpAdd(d);toast(d.name+" bergabung")}
-else if(d.t=="-"){mpDel(d.id);toast("Pemain keluar")}
-else if(d.t=="s"){const o=MP.pl.get(d.id);if(o)o.s=d.s}
-else if(d.t=="e")toast(d.m)}}
-// kirim posisi 10x/detik
-setInterval(()=>{if(!MP.ws||MP.ws.readyState!=1||mode!="play"||!G||!G.mp||!veh)return;const r=n=>Math.round(n*100)/100;MP.ws.send(JSON.stringify({t:"s",s:{x:r(pp.x),y:r(pp.y),z:r(pp.z),r:r(ch.rotation.y),d:driving?1:0,vx:r(veh.position.x),vz:r(veh.position.z),vr:r(veh.rotation.y)}}))},100);
+function mpLeave(){if(MP.sb&&MP.ch){try{MP.sb.removeChannel(MP.ch)}catch(e){}}MP.ch=null;if(MP.g)sc.remove(MP.g);MP.g=null;MP.pl.clear()}
+function mpJoin(room){mpLeave();if(!window.supabase)return toast("Library Supabase gagal dimuat, cek internet");
+MP.sb=MP.sb||supabase.createClient(SBU,SBK);MP.id=Math.random().toString(36).slice(2,10);MP.g=new T.Group();sc.add(MP.g);
+let h=2166136261;for(const c of room)h=Math.imul(h^c.charCodeAt(0),16777619);const seed=(h>>>0)%1e9;
+const ch=MP.sb.channel("ds-"+room,{config:{broadcast:{self:false},presence:{key:MP.id}}});MP.ch=ch;let started=false;
+ch.on("broadcast",{event:"s"},m=>{const d=m.payload,o=d&&MP.pl.get(d.id);if(o)o.s=d.s})
+.on("presence",{event:"join"},e=>{if(e.key==MP.id)return;e.newPresences.forEach(p=>{mpAdd({id:e.key,name:p.name,av:p.av,acc:p.acc});toast((p.name||"Pemain")+" bergabung")})})
+.on("presence",{event:"leave"},e=>{if(MP.pl.has(e.key)){mpDel(e.key);toast("Pemain keluar")}})
+.subscribe(async st=>{if(st=="SUBSCRIBED"){if(!started){started=true;newGame(1);G.seed=seed;G.mp=1;closeM();show("");startGame();toast("Room "+room)}await ch.track({name:P.name,av:P.avatar,acc:P.acc})}else if(st=="CHANNEL_ERROR"||st=="TIMED_OUT")toast("Gagal konek ke Supabase")})}
+// kirim posisi 8x/detik
+setInterval(()=>{if(!MP.ch||MP.ch.state!="joined"||mode!="play"||!G||!G.mp||!veh)return;const r=n=>Math.round(n*100)/100;MP.ch.send({type:"broadcast",event:"s",payload:{id:MP.id,s:{x:r(pp.x),y:r(pp.y),z:r(pp.z),r:r(ch.rotation.y),d:driving?1:0,vx:r(veh.position.x),vz:r(veh.position.z),vr:r(veh.rotation.y)}}})},125);
 // tampilkan pemain lain (interpolasi halus)
 let mpT=0;(function mpLoop(now){requestAnimationFrame(mpLoop);const dt=Math.min(.1,(now-mpT)/1000||0);mpT=now;
 MP.pl.forEach(o=>{const s=o.s;if(!s)return;const k=o.i?Math.min(1,dt*10):1;o.i=1;const m=o.m,v=o.v;m.visible=!s.d;v.visible=!!s.d;
@@ -523,8 +522,8 @@ const U=m.userData;if(U&&U.ar){const w=Math.min(1,mv*20)*Math.sin(now/120)*.7;U.
 if(s.d){v.position.x+=(s.vx-v.position.x)*k;v.position.z+=(s.vz-v.position.z)*k;v.position.y=H(v.position.x,v.position.z);let b=s.vr-v.rotation.y;b=Math.atan2(Math.sin(b),Math.cos(b));v.rotation.y+=b*k}})})(0);
 // keluar ke lobby = putus koneksi; save dimatikan saat multiplayer
 {const _tl=toLobby;toLobby=function(){mpLeave();return _tl.apply(this,arguments)};const _sg=saveG;saveG=function(){if(G&&G.mp)return;return _sg.apply(this,arguments)}}
-$("bMP").onclick=()=>{modal(`<b>MULTIPLAYER</b><p>Semua pemain di room yang sama masuk ke dunia gurun yang sama.</p><p><input type="text" id="mpR" maxlength="12" placeholder="Kode room (mis. GURUN1)"></p>${location.protocol.startsWith("http")?"":'<p><input type="text" id="mpS" placeholder="nama-game.onrender.com" value="'+(localStorage.dsmp||"")+'"></p>'}<div class="row"><button id="mpGo">Gabung / Buat</button><button id="cx">Batal</button></div>`);
-$("cx").onclick=closeM;$("mpGo").onclick=()=>{const r=$("mpR").value.trim().toUpperCase();if(!r)return toast("Isi kode room");const s=$("mpS")?$("mpS").value.trim():location.host;if(!s)return toast("Isi alamat server");if($("mpS"))localStorage.dsmp=s;mpJoin(r,s)}};
+$("bMP").onclick=()=>{modal(`<b>MULTIPLAYER</b><p>Semua pemain dengan kode room yang sama masuk ke gurun yang sama.</p><p><input type="text" id="mpR" maxlength="12" placeholder="Kode room (mis. GURUN1)"></p><div class="row"><button id="mpGo">Gabung / Buat</button><button id="cx">Batal</button></div>`);
+$("cx").onclick=closeM;$("mpGo").onclick=()=>{const r=$("mpR").value.trim().toUpperCase().replace(/[^A-Z0-9]/g,"");if(!r)return toast("Isi kode room (huruf/angka)");mpJoin(r)}};
 // boot
 (async()=>{const set=p=>$("lb").style.width=p+"%";let ti=0;$("tip").textContent=TIPS[0];const tt=setInterval(()=>$("tip").textContent=TIPS[++ti%TIPS.length],1800);const t0=Date.now();
 set(15);await new Promise(r=>setTimeout(r,50));set(40);P=await dbp("get","profile");set(70);ch=makeChar(P&&P.acc);sc.add(ch);lobbyG=makeLobby();sc.add(lobbyG);makeSky();set(90);
