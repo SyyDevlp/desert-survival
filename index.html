@@ -504,6 +504,8 @@ const cl=(n,a,b)=>Number.isFinite(n)?Math.max(a,Math.min(b,n)):0;
 const nm=s=>String(s==null?"":s).replace(/[\u0000-\u001f<>]/g,"").trim().slice(0,14)||"Pemain";
 const cm=s=>String(s==null?"":s).replace(/[\u0000-\u001f]/g,"").trim().slice(0,200);
 const mpPh=()=>{if(PH.open)phRender()};
+function mpHud(){let e=document.getElementById("mpd");if(!e){e=document.createElement("div");e.id="mpd";e.style.cssText="position:fixed;left:4px;bottom:2px;font:10px monospace;color:#fffc;text-shadow:0 0 2px #000;pointer-events:none;z-index:4";document.body.appendChild(e)}
+e.textContent="MP v3 · "+NET.state+" · "+(MP.pl.size+1)+" pemain · "+(MP.host?"host":"tamu")+" · dunia ↑"+(MP.txd||0)+" ↓"+(MP.rxd||0)+" · snap "+(MP.gotF?"ok":"-")+(MP.err?" · ERR "+MP.err:"")}
 const okI=it=>Array.isArray(it)&&it.length<=60&&it.every(s=>s==null||(Array.isArray(s)&&typeof s[0]=="string"&&ITEMS[s[0]]&&Number.isFinite(s[1])));
 const WXT=["clear","rain","sand"],dbits=()=>doors.map(x=>x.open?1:0).join("");
 function mpBase(){MP.N0=crates.length;MP.init={};crates.forEach((c,i)=>MP.init["c"+i]=JSON.stringify(c.items));MP.ws={};mpWScan(true)}
@@ -515,11 +517,11 @@ if(ws.do!==db){ws.do=db;d.do=db}if(ws.v!==vs){ws.v=vs;d.v={p:G.veh.parts,f}}if(w
 if(cs.length)d.c=cs;if(dr.length)d.dr=dr;return adopt?null:(Object.keys(d).length?d:null)}
 function mpWFull(){const cs=[],dr=[];crates.forEach((c,i)=>{if(c.uid)dr.push([c.uid,c.x,c.z,c.items]);else if(i<MP.N0&&JSON.stringify(c.items)!==MP.init["c"+i])cs.push(["c"+i,c.items])});
 return{c:cs,dr,do:dbits(),v:{p:G.veh.parts,f:Math.round(G.veh.fuel)},vp:[veh.position.x,veh.position.z,veh.rotation.y],l:lampOn?1:0,t:G.time,wx:wx.type}}
-function mpWApply(p){if(!p||typeof p!="object"||!G||!G.mp||!MP.ws)return;const ws=MP.ws;
+function mpWApply(p){if(!p||typeof p!="object"||!G||!G.mp||!MP.ws)return;const ws=MP.ws;MP.rxd=(MP.rxd||0)+1;
 (Array.isArray(p.dr)?p.dr:[]).slice(0,100).forEach(a=>{if(!Array.isArray(a)||typeof a[0]!="string"||a[0].length>40||!okI(a[3])||crates.some(c=>c.uid==a[0]))return;const c=mkDrop({x:cl(+a[1],-5e3,5e3),z:cl(+a[2],-5e3,5e3),items:a[3]});c.uid=a[0];ws[a[0]]=JSON.stringify(c.items)});
 (Array.isArray(p.c)?p.c:[]).slice(0,400).forEach(a=>{if(!Array.isArray(a)||typeof a[0]!="string"||!okI(a[1]))return;const k=a[0],st=/^c\d+$/.test(k),c=st?(+k.slice(1)<MP.N0?crates[+k.slice(1)]:null):crates.find(q=>q.uid==k);if(!c)return;c.items=a[1];ws[k]=JSON.stringify(c.items);refC(c)});
 if(typeof p.do=="string"&&p.do.length==doors.length){doors.forEach((d,i)=>{if((p.do[i]=="1")!=!!d.open)togDoor(d,true)});ws.do=dbits()}
-if(p.v&&p.v.p&&typeof p.v.p=="object"){const np={};for(const k in NEED)np[k]=cl(+p.v.p[k]||0,0,NEED[k]);G.veh.parts=np;G.veh.fuel=cl(+p.v.f,0,40);syncVeh();ws.v=JSON.stringify([np,Math.round(G.veh.fuel)])}
+if(p.v&&p.v.p&&typeof p.v.p=="object"){const np={};const LIM=Object.assign({frame:1},NEED);for(const k in LIM)np[k]=cl(+p.v.p[k]||0,0,LIM[k]);G.veh.parts=np;G.veh.fuel=cl(+p.v.f,0,40);syncVeh();ws.v=JSON.stringify([np,Math.round(G.veh.fuel)])}
 if(p.l!=null){lampOn=!!p.l;ws.l=p.l?1:0}
 if(Array.isArray(p.vp)&&!driving){veh.position.set(cl(+p.vp[0],-5e3,5e3),0,cl(+p.vp[1],-5e3,5e3));veh.position.y=H(veh.position.x,veh.position.z);veh.rotation.y=cl(+p.vp[2],-50,50)}
 if(typeof p.t=="number"&&p.t>=0&&p.t<1)G.time=p.t;if(WXT.includes(p.wx)&&p.wx!=wx.type){wx.type=p.wx;wx.t=60}}
@@ -528,10 +530,10 @@ function mpFree(o){o.traverse(x=>{if(x.geometry)x.geometry.dispose();const ms=x.
 function mpAdd(p){if(MP.pl.has(p.id)||!MP.g||MP.pl.size>=MPMAX-1)return;let m;try{m=makeChar(p.acc&&typeof p.acc=="object"?p.acc:{})}catch(e){m=makeChar({})}
 const n=nm(p.name);m.add(mpTag(n));const v=new T.Group();v.add(box(3.4,1,5.2,/^#[0-9a-f]{3,6}$/i.test(p.av)?p.av:"#e0902f",0,.7,0));v.visible=false;m.visible=false;MP.g.add(m,v);MP.pl.set(p.id,{m,v,s:null,i:0,seen:0,name:n})}
 function mpDel(id){const o=MP.pl.get(id);if(!o)return;MP.g.remove(o.m,o.v);mpFree(o.m);mpFree(o.v);MP.pl.delete(id)}
-function mpLeave(){const rc=MP.ch;MP.ch=null;if(MP.sb&&rc){try{MP.sb.removeChannel(rc)}catch(e){}}
-MP.pl.forEach((o,id)=>mpDel(id));if(MP.g)sc.remove(MP.g);MP.g=null;MP.pl.clear();MP.out=[];MP.log={};MP.un={};MP.seen.clear();MP.last=null;MP.host=false;MP.ws=null;MP.gotF=0;NET.state="sp";PH.peer=null}
+function mpLeave(){const hd=document.getElementById("mpd");if(hd)hd.remove();const rc=MP.ch;MP.ch=null;if(MP.sb&&rc){try{MP.sb.removeChannel(rc)}catch(e){}}
+MP.pl.forEach((o,id)=>mpDel(id));if(MP.g)sc.remove(MP.g);MP.g=null;MP.pl.clear();MP.out=[];MP.log={};MP.un={};MP.seen.clear();MP.last=null;MP.host=false;MP.txd=MP.rxd=0;MP.err="";MP.ws=null;MP.gotF=0;NET.state="sp";PH.peer=null}
 function mpRx(d){const o=d&&typeof d.id=="string"&&MP.pl.get(d.id);if(!o||!d.s||typeof d.s!="object")return;const s=d.s;
-o.s={x:cl(s.x,-5e3,5e3),y:cl(s.y,-200,500),z:cl(s.z,-5e3,5e3),r:cl(s.r,-50,50),d:s.d?1:0,vx:cl(s.vx,-5e3,5e3),vz:cl(s.vz,-5e3,5e3),vr:cl(s.vr,-50,50)};o.seen=performance.now()}
+o.s={x:cl(s.x,-5e3,5e3),y:cl(s.y,-200,500),z:cl(s.z,-5e3,5e3),r:cl(s.r,-50,50),d:s.d?1:0,h:(typeof s.h=="string"&&ITEMS[s.h])?s.h:"",vx:cl(s.vx,-5e3,5e3),vz:cl(s.vz,-5e3,5e3),vr:cl(s.vr,-50,50)};o.seen=performance.now()}
 function mpPush(th,e){const a=MP.log[th]=MP.log[th]||[];a.push(e);if(a.length>50)a.shift();return e}
 function mpCRx(d){if(!d||typeof d.i!="string"||typeof d.x!="string"||typeof d.f!="string"||d.f==MP.id)return;if(d.to!="*"&&d.to!=MP.id)return;
 if(MP.seen.has(d.i))return;MP.seen.add(d.i);if(MP.seen.size>200)MP.seen.delete(MP.seen.values().next().value);
@@ -552,7 +554,7 @@ const rc=MP.sb.channel("ds-"+room,{config:{broadcast:{self:false},presence:{key:
 rc.on("broadcast",{event:"s"},m=>{if(MP.ch===rc)mpRx(m.payload)})
 .on("broadcast",{event:"c"},m=>{if(MP.ch===rc)mpCRx(m.payload)})
 .on("broadcast",{event:"w"},m=>{if(MP.ch!==rc||MP.host||!G||!G.mp)return;const t=m.payload&&m.payload.t;if(typeof t!="number"||!(t>=0&&t<1))return;const d=((t-G.time+1.5)%1)-.5;if(Math.abs(d)>.004)G.time=(G.time+d+1)%1;if(WXT.includes(m.payload.wx)&&m.payload.wx!=wx.type){wx.type=m.payload.wx;wx.t=60}})
-.on("broadcast",{event:"d"},m=>{if(MP.ch===rc)mpWApply(m.payload)})
+.on("broadcast",{event:"d"},m=>{if(MP.ch===rc)try{mpWApply(m.payload)}catch(e){MP.err=String(e.message||e).slice(0,40)}})
 .on("broadcast",{event:"q"},m=>{const p=m.payload;if(MP.ch===rc&&MP.host&&MP.ws&&p&&typeof p.id=="string")rc.send({type:"broadcast",event:"f",payload:{to:p.id,s:mpWFull()}})})
 .on("broadcast",{event:"f"},m=>{const p=m.payload;if(MP.ch===rc&&MP.ws&&p&&p.to==MP.id&&p.s&&!MP.gotF){MP.gotF=1;mpWApply(p.s)}})
 .on("presence",{event:"join"},e=>{if(MP.ch!==rc||e.key==MP.id)return;e.newPresences.forEach(p=>{if(!MP.pl.has(e.key)){mpAdd({id:e.key,name:p.name,av:p.av,acc:p.acc});if(MP.pl.has(e.key))toast(nm(p.name)+" bergabung")}});MP.lastT=0;mpPh()})
@@ -564,17 +566,17 @@ NET.state="on";MP.lastT=0;await rc.track({name:nm(P.name),av:P.avatar,acc:P.acc,
 else if(st=="CHANNEL_ERROR"||st=="TIMED_OUT"||st=="CLOSED"){NET.state="off";toast(started?"Koneksi terputus, menyambung ulang...":"Gagal konek ke Supabase");mpPh()}})}
 // satu-satunya interval multiplayer: posisi hanya dikirim bila bergerak (8x/dtk), diam = 1x/dtk, tab tersembunyi = berhenti
 setInterval(()=>{const rc=MP.ch;if(!rc||rc.state!="joined"||mode!="play"||!G||!G.mp||!veh||document.hidden)return;MP.n++;
-const now=performance.now(),r=n=>Math.round(n*100)/100,s={x:r(pp.x),y:r(pp.y),z:r(pp.z),r:r(ch.rotation.y),d:driving?1:0,vx:r(veh.position.x),vz:r(veh.position.z),vr:r(veh.rotation.y)},L=MP.last;
-const mv=!L||Math.hypot(s.x-L.x,s.z-L.z)>.03||Math.abs(s.y-L.y)>.03||Math.abs(s.r-L.r)>.02||s.d!=L.d||(s.d&&(Math.hypot(s.vx-L.vx,s.vz-L.vz)>.03||Math.abs(s.vr-L.vr)>.02));
+const now=performance.now(),r=n=>Math.round(n*100)/100,s={x:r(pp.x),y:r(pp.y),z:r(pp.z),r:r(ch.rotation.y),d:driving?1:0,vx:r(veh.position.x),vz:r(veh.position.z),vr:r(veh.rotation.y),h:(G.inv&&G.inv[G.sel]||[])[0]||""},L=MP.last;
+const mv=!L||Math.hypot(s.x-L.x,s.z-L.z)>.03||Math.abs(s.y-L.y)>.03||Math.abs(s.r-L.r)>.02||s.d!=L.d||s.h!=L.h||(s.d&&(Math.hypot(s.vx-L.vx,s.vz-L.vz)>.03||Math.abs(s.vr-L.vr)>.02));
 if(mv||now-MP.lastT>1000){MP.last=s;MP.lastT=now;rc.send({type:"broadcast",event:"s",payload:{id:MP.id,s}})}
-if(MP.n%8==0)mpFlush();if(MP.host&&MP.n%40==0)rc.send({type:"broadcast",event:"w",payload:{t:G.time,wx:wx.type}});
-if(MP.ws){if(MP.n%4==0){const d=mpWScan();if(d)rc.send({type:"broadcast",event:"d",payload:d})}
+if(MP.n%8==0){mpFlush();mpHud()}if(MP.host&&MP.n%40==0)rc.send({type:"broadcast",event:"w",payload:{t:G.time,wx:wx.type}});
+if(MP.ws){if(MP.n%4==0){try{const d=mpWScan();if(d){MP.txd=(MP.txd||0)+1;rc.send({type:"broadcast",event:"d",payload:d})}}catch(e){MP.err=String(e.message||e).slice(0,40)}}
 if(!MP.gotF&&!MP.host&&MP.pl.size&&MP.n%16==0&&MP.qn++<4)rc.send({type:"broadcast",event:"q",payload:{id:MP.id}})}},125);
 addEventListener("offline",()=>{if(MP.ch){NET.state="off";mpPh()}});addEventListener("online",()=>{if(MP.ch&&MP.ch.state=="joined"){NET.state="on";mpPh()}});
 // tampilkan pemain lain (interpolasi)
 let mpT=0;(function mpLoop(now){requestAnimationFrame(mpLoop);const dt=Math.min(.1,(now-mpT)/1000||0);mpT=now;
 MP.pl.forEach(o=>{const s=o.s;if(!s)return;const m=o.m,v=o.v;if(now-o.seen>MPSTALE){m.visible=v.visible=false;o.i=0;return}
-const k=o.i?Math.min(1,dt*10):1;o.i=1;m.visible=!s.d;v.visible=false;
+const k=o.i?Math.min(1,dt*10):1;o.i=1;m.visible=!s.d;v.visible=false;{const U0=m.userData;if(U0&&U0.hand&&o.h!==s.h){while(U0.hand.children.length){const q=U0.hand.children[0];U0.hand.remove(q);mpFree(q)}if(s.h)try{U0.hand.add(itemMesh(s.h))}catch(e){}U0.held=!!s.h;o.h=s.h}}
 const mv=Math.hypot(s.x-m.position.x,s.z-m.position.z);
 m.position.x+=(s.x-m.position.x)*k;m.position.y+=(s.y-m.position.y)*k;m.position.z+=(s.z-m.position.z)*k;
 let a=s.r-m.rotation.y;a=Math.atan2(Math.sin(a),Math.cos(a));m.rotation.y+=a*k;
