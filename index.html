@@ -504,7 +504,7 @@ const cl=(n,a,b)=>Number.isFinite(n)?Math.max(a,Math.min(b,n)):0;
 const nm=s=>String(s==null?"":s).replace(/[\u0000-\u001f<>]/g,"").trim().slice(0,14)||"Pemain";
 const cm=s=>String(s==null?"":s).replace(/[\u0000-\u001f]/g,"").trim().slice(0,200);
 const mpPh=()=>{if(PH.open)phRender()};
-function mpHud(){let e=document.getElementById("mpd");if(!e){e=document.createElement("div");e.id="mpd";e.style.cssText="position:fixed;left:4px;bottom:2px;font:10px monospace;color:#fffc;text-shadow:0 0 2px #000;pointer-events:none;z-index:4";document.body.appendChild(e)}
+function mpHud(){let e=document.getElementById("mpd");if(!e){e=document.createElement("div");e.id="mpd";e.style.cssText="position:fixed;left:4px;bottom:2px;font:10px monospace;color:#fffc;text-shadow:0 0 2px #000;pointer-events:none;z-index:99999";document.body.appendChild(e)}
 e.textContent="MP v3 · "+NET.state+" · "+(MP.pl.size+1)+" pemain · "+(MP.host?"host":"tamu")+" · dunia ↑"+(MP.txd||0)+" ↓"+(MP.rxd||0)+" · snap "+(MP.gotF?"ok":"-")+(MP.err?" · ERR "+MP.err:"")}
 const okI=it=>Array.isArray(it)&&it.length<=60&&it.every(s=>s==null||(Array.isArray(s)&&typeof s[0]=="string"&&ITEMS[s[0]]&&Number.isFinite(s[1])));
 const WXT=["clear","rain","sand"],dbits=()=>doors.map(x=>x.open?1:0).join("");
@@ -548,7 +548,7 @@ const now=Date.now();if(now-MP.sendT<700)return toast("Terlalu cepat");MP.sendT=
 const e=mpPush(th,{me:1,n:"",x:t,st:"…"});e.p={i:Math.random().toString(36).slice(2,10)+now.toString(36),f:MP.id,n:nm(P.name),to:th,x:t};
 if(MP.out.length<30)MP.out.push(e);else{e.st="✗";e.p=null}mpFlush();mpPh()}
 function mpJoin(room){mpLeave();if(!window.supabase)return toast("Library Supabase gagal dimuat, cek internet");
-MP.sb=MP.sb||supabase.createClient(SBU,SBK,{realtime:{params:{eventsPerSecond:20}}});MP.id=Math.random().toString(36).slice(2,10);MP.room=room;MP.g=new T.Group();sc.add(MP.g);
+MP.sb=MP.sb||supabase.createClient(SBU,SBK,{realtime:{params:{eventsPerSecond:20}}});MP.id=Math.random().toString(36).slice(2,10);MP.room=room;MP.g=new T.Group();sc.add(MP.g);mpHud();
 let h=2166136261;for(const c of room)h=Math.imul(h^c.charCodeAt(0),16777619);const seed=(h>>>0)%1e9;
 const rc=MP.sb.channel("ds-"+room,{config:{broadcast:{self:false},presence:{key:MP.id}}});MP.ch=rc;let started=false;MP.t0=Date.now();
 rc.on("broadcast",{event:"s"},m=>{if(MP.ch===rc)mpRx(m.payload)})
@@ -598,7 +598,7 @@ if(t){if(f){t.value=v;t.focus()}["keydown","keyup","keypress"].forEach(n=>t.addE
 const go=()=>{mpSend(PH.app=="grp"?"*":PH.peer,t.value);t.value=""};s.onclick=go;t.addEventListener("keydown",e=>{if(e.key=="Enter")go()})}}}
 // keluar ke lobby = putus koneksi; save dimatikan saat multiplayer
 {const _tl=toLobby;toLobby=function(){mpLeave();return _tl.apply(this,arguments)};const _sg=saveG;saveG=function(){if(G&&G.mp)return;return _sg.apply(this,arguments)}}
-$("bMP").onclick=()=>{modal(`<b>MULTIPLAYER</b><p>Semua pemain dengan kode room yang sama masuk ke gurun yang sama (maks ${MPMAX}). Kode room bersifat publik: siapa pun yang tahu kodenya bisa masuk, jadi pakai kode yang sulit ditebak.</p><p><input type="text" id="mpR" maxlength="12" placeholder="Kode room (min. 4 huruf/angka)"></p><div class="row"><button id="mpGo">Gabung / Buat</button><button id="cx">Batal</button></div>`);
+$("bMP").onclick=()=>{modal(`<b>MULTIPLAYER v3</b><p>Semua pemain dengan kode room yang sama masuk ke gurun yang sama (maks ${MPMAX}). Kode room bersifat publik: siapa pun yang tahu kodenya bisa masuk, jadi pakai kode yang sulit ditebak.</p><p><input type="text" id="mpR" maxlength="12" placeholder="Kode room (min. 4 huruf/angka)"></p><div class="row"><button id="mpGo">Gabung / Buat</button><button id="cx">Batal</button></div>`);
 $("cx").onclick=closeM;$("mpGo").onclick=()=>{const r=$("mpR").value.trim().toUpperCase().replace(/[^A-Z0-9]/g,"");if(r.length<4)return toast("Kode room minimal 4 huruf/angka");mpJoin(r)}};
 // boot
 (async()=>{const set=p=>$("lb").style.width=p+"%";let ti=0;$("tip").textContent=TIPS[0];const tt=setInterval(()=>$("tip").textContent=TIPS[++ti%TIPS.length],1800);const t0=Date.now();
